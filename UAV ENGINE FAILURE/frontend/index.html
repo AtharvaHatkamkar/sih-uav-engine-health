@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELIX // UAV Propulsion Health & Early Warning Ground Station</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="aerospace-theme">
+
+    <!-- TOP AVIONICS SYSTEM BAR -->
+    <header class="hud-top-bar">
+        <div class="hud-brand">
+            <div class="hud-radar-symbol">
+                <span class="radar-sweep"></span>
+                <span class="radar-crosshair-h"></span>
+                <span class="radar-crosshair-v"></span>
+                <span class="radar-ring"></span>
+                <span class="radar-dot"></span>
+            </div>
+            <div class="brand-text">
+                <!-- <div class="sys-title">ELIX <span class="sys-tag">GCS-PROPULSION</span></div> -->
+                <div class="sys-title">ELIX </div>
+                <div class="sys-subtitle">UAV ENGINE HEALTH &amp; EARLY-WARNING GROUND STATION</div>
+            </div>
+        </div>
+
+        <!-- TELEMETRY STATUS METRICS -->
+        <div class="hud-telemetry-meta">
+            <div class="meta-pill">
+                <span class="meta-label">AIRCRAFT ID</span>
+                <span class="meta-val" id="dispUavId">UAV-SHADOW-4B</span>
+            </div>
+            <div class="meta-pill">
+                <span class="meta-label">FLIGHT SORTIE</span>
+                <span class="meta-val" id="dispFlightRef">FLT-STANDBY</span>
+            </div>
+            <div class="meta-pill">
+                <span class="meta-label">LINK STATUS</span>
+                <span class="meta-val link-good">RF 915MHz [10Hz]</span>
+            </div>
+            <div class="meta-pill">
+                <span class="meta-label">SYS STATE</span>
+                <span class="state-badge status-standby" id="dispSysState">STANDBY</span>
+            </div>
+            <div class="meta-pill">
+                <span class="meta-label">OPERATING THRESHOLD</span>
+                <div class="threshold-control">
+                    <span id="dispThresholdVal">0.30</span>
+                    <button class="th-edit-btn" id="btnEditThreshold" title="Configure operating threshold">[EDIT]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="hud-actions-right">
+            <button class="hud-btn hud-btn-outline" id="btnOpenHistory" title="View historical flight database">
+                HISTORY
+            </button>
+            <button class="hud-btn hud-btn-outline" id="btnOpenCompare" title="Compare two flight telemetry datasets">
+                COMPARE
+            </button>
+            <button class="hud-btn hud-btn-primary" id="btnOpenReport" title="Export digital flight health certificate" disabled>
+                FLIGHT REPORT
+            </button>
+        </div>
+    </header>
+
+    <!-- THRESHOLD MODAL -->
+    <div class="modal-overlay" id="thresholdModal">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3>OPERATIONAL FAILURE RISK THRESHOLD CONFIGURATION</h3>
+                <button class="modal-close-btn" id="btnCloseThresholdModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">
+                    The operational threshold defines the boundary where propulsion telemetry triggers warning alerts. 
+                    Default configured operating threshold is <strong>0.30</strong> (30% failure probability).
+                </p>
+                <div class="threshold-slider-group">
+                    <label for="thresholdInput">Operating Threshold: <span id="thresholdSliderValue">0.30</span> (30%)</label>
+                    <input type="range" id="thresholdInput" min="0.10" max="0.70" step="0.05" value="0.30">
+                    <div class="threshold-scale">
+                        <span>0.10 (High Sensitivity)</span>
+                        <span>0.30 (Calibrated Standard)</span>
+                        <span>0.70 (Conservative Filter)</span>
+                    </div>
+                </div>
+                <div class="disclaimer-mini">
+                    Note: Operational thresholds reflect engineering safety margins and do not constitute certified airworthiness approval.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="hud-btn hud-btn-outline" id="btnCancelThreshold">CANCEL</button>
+                <button class="hud-btn hud-btn-primary" id="btnSaveThreshold">APPLY THRESHOLD</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN FLIGHT OPERATIONS GRID -->
+    <main class="hud-main-grid">
+
+        <!-- LEFT COLUMN: INGESTION, REPLAY, SUMMARY -->
+        <aside class="hud-left-panel">
+
+            <!-- 1. TELEMETRY INGESTION BOX -->
+            <section class="hud-card flight-ingestion-card">
+                <div class="card-header">
+                    <span class="card-tag">INGESTION</span>
+                    <h2>TELEMETRY LOG INGESTION</h2>
+                    <span class="status-indicator-dot online"></span>
+                </div>
+
+                <!-- 1-CLICK TEST PRESETS -->
+                <div class="demo-preset-group">
+                    <div class="preset-label">FLIGHT SORTIE BENCHMARKS (1-CLICK EVALUATION):</div>
+                    <div class="preset-buttons">
+                        <button class="preset-btn preset-healthy" id="btnDemoHealthy" title="Load nominal flight log">
+                            <span class="preset-indicator green"></span>
+                            <div class="preset-text">
+                                <span class="preset-name">FLIGHT A</span>
+                                <span class="preset-sub">Nominal Cruise (Healthy)</span>
+                            </div>
+                        </button>
+                        <button class="preset-btn preset-anomaly" id="btnDemoAnomaly" title="Load bearing degradation flight">
+                            <span class="preset-indicator amber"></span>
+                            <div class="preset-text">
+                                <span class="preset-name">FLIGHT B</span>
+                                <span class="preset-sub">Developing Bearing Fault</span>
+                            </div>
+                        </button>
+                        <button class="preset-btn preset-critical" id="btnDemoCritical" title="Load critical pre-failure flight">
+                            <span class="preset-indicator red"></span>
+                            <div class="preset-text">
+                                <span class="preset-name">FLIGHT C</span>
+                                <span class="preset-sub">Critical Pre-Failure</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FILE DROPZONE (CSV, TXT, LOG, TSV, DAT) -->
+                <div class="dropzone" id="csvDropzone">
+                    <input type="file" id="fileInput" accept=".csv,.txt,.log,.tsv,.dat" class="file-input-hidden">
+                    <div class="dropzone-content">
+                        <div class="dropzone-code-symbol">FILE_INGEST</div>
+                        <div class="dropzone-title">DROP UAV TELEMETRY FILE HERE</div>
+                        <div class="dropzone-sub">Accepts <strong>CSV, TXT, LOG, TSV, DAT</strong> (comma, space, or tab delimited)</div>
+                        <div class="dropzone-hint">Supports 21 engineered features or 9 raw kinematics (seq_len &ge; 20)</div>
+                    </div>
+                </div>
+
+                <!-- PRELOADED BENCHMARK FILE DROPDOWN (FOR JUDGES & EVALUATION) -->
+                <div class="benchmark-selector-box">
+                    <div class="benchmark-label-row">
+                        <span class="benchmark-title">PRELOADED BENCHMARK DATASET:</span>
+                        <span class="benchmark-tag">TRAIN &amp; TEST ONLY</span>
+                    </div>
+                    <div class="benchmark-controls-row">
+                        <select id="benchmarkSelect" class="hud-select benchmark-dropdown">
+                            <option value="" disabled selected>-- Select Benchmark File (FD002 / FD004) --</option>
+                        </select>
+                        <button class="hud-btn hud-btn-outline load-benchmark-btn" id="btnLoadBenchmark" title="Load and analyze selected benchmark file">
+                            ANALYZE
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FILE STATUS INFO -->
+                <div class="file-status-strip" id="fileStatusStrip" style="display: none;">
+                    <div class="file-info-row">
+                        <span class="file-name-label" id="dispFilename">flight_telemetry.csv</span>
+                        <span class="sample-count-badge" id="dispSampleCount">0 samples</span>
+                    </div>
+                    <div class="validation-badge-row">
+                        <span class="val-badge success" id="dispValidationBadge">TELEMETRY VALIDATED</span>
+                        <span class="val-badge model-badge" id="dispSchemaBadge">SCHEMA: UAV-21CH</span>
+                    </div>
+                </div>
+
+                <button class="hud-btn hud-btn-accent start-analysis-btn" id="btnStartAnalysis" disabled>
+                    <span class="btn-spinner" id="analysisSpinner" style="display: none;"></span>
+                    <span id="btnStartText">EXECUTE TELEMETRY INFERENCE</span>
+                </button>
+            </section>
+
+            <!-- 2. FLIGHT REPLAY SIMULATION CONTROLLER -->
+            <section class="hud-card flight-replay-card">
+                <div class="card-header space-between">
+                    <div class="header-left">
+                        <span class="card-tag">SIMULATION</span>
+                        <h2>FLIGHT TELEMETRY REPLAY</h2>
+                    </div>
+                    <span class="badge-mini" id="replayStateBadge">STANDBY</span>
+                </div>
+
+                <!-- TRANSPORT CONTROLS ROW -->
+                <div class="replay-transport-grid">
+                    <button class="replay-btn" id="btnReplayRestart" title="Reset to T+00:00">[RESET]</button>
+                    <button class="replay-btn replay-play-btn" id="btnReplayPlay" title="Play / Pause Replay">[PLAY]</button>
+                    <button class="replay-btn" id="btnReplayStop" title="Stop Replay">[STOP]</button>
+                </div>
+
+                <!-- PLAYBACK RATE SELECTOR ROW -->
+                <div class="replay-speed-row">
+                    <span class="speed-label">PLAYBACK RATE:</span>
+                    <div class="speed-btn-group">
+                        <button class="speed-btn active" data-speed="1">1x</button>
+                        <button class="speed-btn" data-speed="2">2x</button>
+                        <button class="speed-btn" data-speed="5">5x</button>
+                        <button class="speed-btn" data-speed="10">10x</button>
+                    </div>
+                </div>
+
+                <!-- SCRUBBER & TIMESTAMP -->
+                <div class="replay-timeline-scrub">
+                    <div class="scrub-time-row">
+                        <span class="time-readout" id="replayCurrentTime">T+ 00:00.0</span>
+                        <span class="time-readout duration" id="replayTotalTime">/ 00:00.0</span>
+                    </div>
+                    <input type="range" class="scrub-slider" id="replayScrubber" min="0" max="100" value="0" step="1">
+                </div>
+
+                <!-- 4-STAGE FLIGHT STATUS PROGRESSION BAR -->
+                <div class="replay-status-progression">
+                    <div class="prog-node active" id="progNodeNormal">NORMAL</div>
+                    <span class="prog-connector">&rsaquo;</span>
+                    <div class="prog-node" id="progNodeAttn">ATTN</div>
+                    <span class="prog-connector">&rsaquo;</span>
+                    <div class="prog-node" id="progNodeWarn">WARN</div>
+                    <span class="prog-connector">&rsaquo;</span>
+                    <div class="prog-node" id="progNodeHigh">CRITICAL</div>
+                </div>
+            </section>
+
+            <!-- 3. FLIGHT SUMMARY METRICS -->
+            <section class="hud-card flight-summary-card">
+                <div class="card-header">
+                    <span class="card-tag">METRICS</span>
+                    <h2>ENGINE HEALTH SUMMARY</h2>
+                </div>
+
+                <div class="stats-metric-grid">
+                    <div class="stat-cell">
+                        <div class="stat-title">MIN ENGINE HEALTH</div>
+                        <div class="stat-value" id="dispMinHealth">--</div>
+                        <div class="stat-unit">pts / 100</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-title">PEAK FAILURE RISK</div>
+                        <div class="stat-value" id="dispPeakRisk">--%</div>
+                        <div class="stat-unit">probability</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-title">AVERAGE RISK</div>
+                        <div class="stat-value" id="dispAvgRisk">--%</div>
+                        <div class="stat-unit">mean trajectory</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-title">RISK TRAJECTORY</div>
+                        <div class="stat-value" id="dispRiskTrend">STABLE</div>
+                        <div class="stat-unit">dynamic trend</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-title">ABNORMAL WINDOWS</div>
+                        <div class="stat-value" id="dispAbnormalWindows">0</div>
+                        <div class="stat-unit">&ge; 0.30 threshold</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-title">CRITICAL WINDOWS</div>
+                        <div class="stat-value" id="dispHighRiskWindows">0</div>
+                        <div class="stat-unit">&ge; 0.60 high risk</div>
+                    </div>
+                </div>
+            </section>
+
+        </aside>
+
+        <!-- CENTER & RIGHT: AVIONICS GAUGES, RISK TIMELINE, TELEMETRY TABS, EXPLAINABILITY -->
+        <div class="hud-center-column">
+
+            <!-- EICAS PRIMARY ENGINE HEALTH GAUGES -->
+            <section class="hud-card health-gauges-banner">
+                <!-- Health Tape / Gauge -->
+                <div class="health-gauge-group">
+                    <div class="gauge-dial-container">
+                        <svg class="radial-gauge-svg" viewBox="0 0 160 160">
+                            <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                            <circle class="gauge-fill" id="gaugeHealthFill" cx="80" cy="80" r="68"></circle>
+                        </svg>
+                        <div class="gauge-center-text">
+                            <span class="gauge-score-num" id="gaugeHealthScore">--</span>
+                            <span class="gauge-score-sub">/ 100</span>
+                        </div>
+                    </div>
+                    <div class="gauge-caption">
+                        <div class="gauge-caption-title">ENGINE HEALTH INDEX</div>
+                        <div class="gauge-caption-sub">Continuous dynamic propulsion index</div>
+                    </div>
+                </div>
+
+                <!-- Failure Risk Gauge -->
+                <div class="health-gauge-group">
+                    <div class="gauge-dial-container">
+                        <svg class="radial-gauge-svg" viewBox="0 0 160 160">
+                            <circle class="gauge-track" cx="80" cy="80" r="68"></circle>
+                            <circle class="gauge-fill risk-gauge" id="gaugeRiskFill" cx="80" cy="80" r="68"></circle>
+                        </svg>
+                        <div class="gauge-center-text">
+                            <span class="gauge-score-num" id="gaugeRiskScore">--%</span>
+                            <span class="gauge-score-sub">FAILURE RISK</span>
+                        </div>
+                    </div>
+                    <div class="gauge-caption">
+                        <div class="gauge-caption-title">FAILURE PROBABILITY</div>
+                        <div class="gauge-caption-sub" id="dispThresholdRef">Operating Threshold: 30%</div>
+                    </div>
+                </div>
+
+                <!-- Primary Status Annunciator -->
+                <div class="status-banner-cell">
+                    <div class="status-box-header">PROPULSION STATUS ANNUNCIATOR</div>
+                    <div class="status-banner-badge status-normal" id="dispMainStatus">
+                        <span class="status-pulse-dot"></span>
+                        <span id="dispStatusText">NORMAL</span>
+                    </div>
+                    <div class="status-box-desc" id="dispStatusExplanation">
+                        Telemetry parameters remain within nominal operating envelope.
+                    </div>
+                </div>
+            </section>
+
+            <!-- INTERACTIVE FAILURE RISK TIMELINE -->
+            <section class="hud-card timeline-card">
+                <div class="card-header space-between">
+                    <div class="header-left">
+                        <span class="card-tag">TEMPORAL INFERENCE</span>
+                        <h2>FAILURE RISK TIMELINE (TIME-SERIES SLIDING-WINDOW)</h2>
+                    </div>
+                    <div class="timeline-legend">
+                        <span class="leg-item"><span class="leg-box normal"></span> Normal (&lt;20%)</span>
+                        <span class="leg-item"><span class="leg-box attn"></span> Attention (20-30%)</span>
+                        <span class="leg-item"><span class="leg-box warn"></span> Warning (30-60%)</span>
+                        <span class="leg-item"><span class="leg-box high"></span> High Risk (&gt;60%)</span>
+                    </div>
+                </div>
+
+                <div class="chart-container" id="timelineChartContainer">
+                    <canvas id="riskTimelineCanvas"></canvas>
+                    <div class="scrubber-cursor-line" id="timelineCursorLine" style="display: none;"></div>
+                    <div class="timeline-tooltip" id="timelineTooltip" style="display: none;"></div>
+                </div>
+                <div class="timeline-axis-label">
+                    <span>T+ 00:00.0</span>
+                    <span class="axis-center-hint">Crosshair cursor active: Hover any sample window to inspect local telemetry parameters</span>
+                    <span id="dispTimelineEndLabel">T+ END</span>
+                </div>
+            </section>
+
+            <!-- SYNCHRONIZED TELEMETRY CHANNELS DISPLAY -->
+            <section class="hud-card telemetry-channels-card">
+                <div class="card-header space-between">
+                    <div class="header-left">
+                        <span class="card-tag">AVIONICS STRIP</span>
+                        <h2>TELEMETRY KINEMATICS &amp; PHYSICAL SENSOR CHANNELS</h2>
+                    </div>
+                    <div class="telemetry-tab-bar">
+                        <button class="telem-tab active" data-tab="accel">ACCELERATION [m/s²]</button>
+                        <button class="telem-tab" data-tab="gyro">ANGULAR RATES [°/s]</button>
+                        <button class="telem-tab" data-tab="vel">VELOCITY [m/s]</button>
+                        <button class="telem-tab" data-tab="mags">VIBRATION RMS &amp; DYNAMICS</button>
+                    </div>
+                </div>
+
+                <div class="telemetry-chart-container">
+                    <canvas id="telemetryCanvas"></canvas>
+                    <div class="telem-legend-strip" id="telemLegendStrip">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- DUAL DIAGNOSTIC CARDS: EXPLAINABILITY & EVENT LOCALIZATION -->
+            <div class="dual-card-grid">
+
+                <!-- EXPLAINABLE RESULT: WHY DID RISK INCREASE? -->
+                <section class="hud-card explain-card">
+                    <div class="card-header">
+                        <span class="card-tag">ATTRIBUTION</span>
+                        <h2>WHY DID RISK INCREASE? (KEY CONTRIBUTING TELEMETRY INDICATORS)</h2>
+                    </div>
+                    <div class="card-sub-hint">
+                        Identified telemetry channels ranked by physical shift from nominal cruise baseline with actual engineering units.
+                        <em>(Contributing indicators, not guaranteed physical causes.)</em>
+                    </div>
+
+                    <div class="indicator-list" id="indicatorList">
+                        <div class="empty-state-notice">Awaiting flight telemetry analysis to calculate attribution rankings.</div>
+                    </div>
+                </section>
+
+                <!-- ABNORMAL EVENT LOCALIZATION LOG -->
+                <section class="hud-card events-card">
+                    <div class="card-header">
+                        <span class="card-tag">EVENT LOG</span>
+                        <h2>LOCALIZED ABNORMAL EVENT INTERVALS</h2>
+                    </div>
+                    <div class="card-sub-hint">
+                        Discrete temporal intervals exhibiting sharp risk progression or sensor divergence. Click an event to scrub simulation to that timestamp.
+                    </div>
+
+                    <div class="event-list" id="eventList">
+                        <div class="empty-state-notice">No abnormal event intervals detected.</div>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- CONSERVATIVE MAINTENANCE & SUBSYSTEM INSPECTION DIRECTIVES -->
+            <section class="hud-card maintenance-card">
+                <div class="card-header space-between">
+                    <div class="header-left">
+                        <span class="card-tag">AIRWORTHINESS</span>
+                        <h2>MAINTENANCE ADVISORIES &amp; SUBSYSTEM INSPECTION DIRECTIVES</h2>
+                    </div>
+                    <span class="badge-mini" id="airworthinessBadge">STATUS: VERIFIED</span>
+                </div>
+
+                <div class="maint-content-grid">
+                    <div class="maint-summary-column">
+                        <div class="maint-callout" id="maintCallout">
+                            Awaiting analysis to formulate conservative subsystem inspection directives.
+                        </div>
+                        <div class="affected-subsystems-row">
+                            <span class="subsys-label">TARGETED PROPULSION SUBSYSTEMS:</span>
+                            <div class="subsys-tag-container" id="subsysTagContainer">
+                                <span class="subsys-tag">General Propulsion</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="maint-actions-column">
+                        <div class="actions-header">RECOMMENDED OPERATIONAL ACTIONS:</div>
+                        <ul class="actions-list" id="recommendedActionsList">
+                            <li>Continue standard flight monitoring envelope.</li>
+                        </ul>
+                    </div>
+
+                    <div class="maint-checkpoints-column">
+                        <div class="actions-header">PHYSICAL SUBSYSTEM CHECKPOINTS:</div>
+                        <ul class="actions-list" id="targetCheckpointsList">
+                            <li>Inspect rotor blades and motor bearing axial play.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="honesty-disclaimer">
+                    <span class="disclaimer-badge">[TECHNICAL NOTICE]</span>
+                    <span class="disclaimer-text">
+                        <strong>Honest Technical Limitations:</strong> This platform provides an AI-assisted statistical risk assessment based on telemetry. 
+                        It does not claim 100% diagnostic certainty, certified airworthiness approval, or definitive proof of physical component failure.
+                    </span>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <!-- FLIGHT HISTORY MODAL -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-window modal-lg">
+            <div class="modal-header">
+                <h3>HISTORICAL FLIGHT TELEMETRY ARCHIVE</h3>
+                <button class="modal-close-btn" id="btnCloseHistoryModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-table-wrapper">
+                    <table class="hud-table">
+                        <thead>
+                            <tr>
+                                <th>FLIGHT ID</th>
+                                <th>LOG FILE</th>
+                                <th>ANALYZED AT</th>
+                                <th>HEALTH INDEX</th>
+                                <th>PEAK RISK</th>
+                                <th>AVG RISK</th>
+                                <th>STATUS</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="8" style="text-align: center; color: #64748b;">Loading historical flight archive...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADVANCED FLIGHT COMPARISON MODAL (WITH DUAL-TRACE TIMELINE & METRIC MATRIX) -->
+    <div class="modal-overlay" id="compareModal">
+        <div class="modal-window modal-xl">
+            <div class="modal-header">
+                <h3>SIDE-BY-SIDE FLIGHT TELEMETRY COMPARISON</h3>
+                <button class="modal-close-btn" id="btnCloseCompareModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <!-- Selectors -->
+                <div class="compare-selectors-row">
+                    <div class="compare-select-box">
+                        <label>BASELINE FLIGHT (FLIGHT A):</label>
+                        <select id="selectFlightA" class="hud-select"></select>
+                    </div>
+                    <div class="compare-vs">VS</div>
+                    <div class="compare-select-box">
+                        <label>COMPARATIVE FLIGHT (FLIGHT B):</label>
+                        <select id="selectFlightB" class="hud-select"></select>
+                    </div>
+                    <button class="hud-btn hud-btn-accent" id="btnExecuteCompare">EXECUTE COMPARISON</button>
+                </div>
+
+                <!-- Comparison Results View -->
+                <div class="comparison-results" id="comparisonResults" style="display: none;">
+                    
+                    <!-- Comparative Risk Chart -->
+                    <div class="compare-chart-section">
+                        <div class="compare-chart-header">
+                            <span class="compare-chart-title">DUAL-TRACE TEMPORAL FAILURE RISK TRAJECTORY</span>
+                            <div class="compare-chart-legend">
+                                <span class="comp-leg-a"><span class="comp-color-box flight-a"></span> Flight A (Baseline)</span>
+                                <span class="comp-leg-b"><span class="comp-color-box flight-b"></span> Flight B (Comparative)</span>
+                                <span class="comp-leg-th"><span class="comp-color-line"></span> Threshold (0.30)</span>
+                            </div>
+                        </div>
+                        <div class="compare-canvas-container">
+                            <canvas id="compareTimelineCanvas"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Side-by-Side Metric Matrix -->
+                    <div class="compare-table-wrapper">
+                        <table class="compare-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>TELEMETRY PARAMETER</th>
+                                    <th>FLIGHT A (BASELINE)</th>
+                                    <th>FLIGHT B (COMPARATIVE)</th>
+                                    <th>DIFFERENTIAL DELTA</th>
+                                    <th>EVALUATION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="compareMatrixTbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Summary Assessment Text -->
+                    <div class="comparative-text-box" id="comparativeTextBox"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION TOAST -->
+    <div class="hud-toast" id="hudToast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

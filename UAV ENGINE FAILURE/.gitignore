@@ -1,0 +1,47 @@
+# Byte-compiled / Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Large Raw C-MAPSS Datasets & Text Dumps
+data/*.txt
+data/test_FD*.txt
+data/train_FD*.txt
+data/RUL_FD*.txt
+
+# Raw/Heavy Flight Data (optional: keep demo CSVs if small, ignore raw/heavy ones)
+data/demo_flights/*_raw_*.csv
+
+# Model Weights & Checkpoints
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.h5
+
+# OS & Editor generated files
+# Archives
+*.zip
+*.tar.gz
+*.rar
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Environment variables & secrets
+.env
+.env.*

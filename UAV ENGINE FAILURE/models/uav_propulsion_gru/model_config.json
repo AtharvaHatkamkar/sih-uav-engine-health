@@ -1,0 +1,56 @@
+{
+  "model_name": "UAV Propulsion Health & Failure Prediction GRU",
+  "version": "2.1.0-AeroVigil",
+  "architecture": "Gated Recurrent Unit (GRU) + Dense Multi-Layer Perceptron",
+  "input_features": [
+    "angular_velocity_x",
+    "angular_velocity_y",
+    "angular_velocity_z",
+    "acceleration_x",
+    "acceleration_y",
+    "acceleration_z",
+    "velocity_x",
+    "velocity_y",
+    "velocity_z",
+    "acceleration_magnitude",
+    "angular_velocity_magnitude",
+    "velocity_magnitude",
+    "acceleration_change",
+    "angular_velocity_change",
+    "velocity_change",
+    "acceleration_mean",
+    "acceleration_std",
+    "angular_velocity_mean",
+    "angular_velocity_std",
+    "velocity_mean",
+    "velocity_std"
+  ],
+  "feature_count": 21,
+  "sequence_length": 20,
+  "operating_threshold": 0.3,
+  "risk_levels": {
+    "NORMAL": [
+      0.0,
+      0.2
+    ],
+    "ATTENTION": [
+      0.2,
+      0.3
+    ],
+    "WARNING": [
+      0.3,
+      0.6
+    ],
+    "HIGH_RISK": [
+      0.6,
+      1.0
+    ]
+  },
+  "evaluation_metrics": {
+    "validation_accuracy": 97.44,
+    "precision": 0.9844,
+    "recall": 0.9566,
+    "f1_score": 0.9703
+  },
+  "description": "Primary time-series deep learning model for real-time UAV motor, rotor, and propulsion health monitoring. Converts 20-sample sliding windows of 21 kinematic and dynamic indicators into time-dependent failure risk probabilities."
+}
